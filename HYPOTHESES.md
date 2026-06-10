@@ -264,6 +264,57 @@ honestly across hundreds of indexes.
 
 ---
 
+### BucketAnalysis — Validating the Fix
+
+One of the only durable solutions to parameter sniffing in a shared-tenant database is
+forcing SQL Server to compile separate plans per tenant size class. You cannot easily
+have separate plan caches per tenant, but you can make queries *look different* to the
+query optimizer depending on which size bucket the tenant falls into.
+
+The approach used EF query tagging to append a tautological subquery expression to the
+WHERE clause based on client size:
+
+```sql
+-- small tenant query
+WHERE ClientId = @ClientId AND DeletedUtc < @UtcNow
+-- AND (nothing added)
+
+-- large tenant query  
+WHERE ClientId = @ClientId AND DeletedUtc < @UtcNow
+AND 4 = (SELECT 4) -- forces a unique query hash for this bucket
+```
+
+`4 = (SELECT 4)` is always true and never affects results. What it does is change the
+query hash — SQL Server sees it as a distinct query and compiles a separate plan for
+it. Large tenants get a plan compiled against large data. Small tenants get a plan
+compiled against small data. The two plans never cross-contaminate each other's cache
+entries.
+
+The bucket size was embedded as a tag in the query text via EF:
+
+```sql
+/* Bucketed by BucketByQueryTagAndWhitelist to value large */
+```
+
+or as a query comment:
+
+```sql
+-- query_bucket_size=large;
+```
+
+`BucketAnalysis` extracted these tags from captured query text and correlated them
+against the plan analysis results. For each plan, it recorded: which bucket compiled
+it, which root ID was parameterized, whether the resulting plan still had a root-only
+index seek, and which tables were involved.
+
+This was how we validated that the bucketing was actually working — that large-bucket
+plans were being compiled correctly, that small-bucket plans weren't leaking into large
+tenant executions, and that the boundary conditions between buckets were in the right
+place. A bucket that still showed root-only seek behavior was a signal that either the
+threshold was wrong or the tag wasn't being applied consistently.
+
+---
+
 ### RisingParameterSniffingIncreasesRatesForBadQueryPlans *(not implemented)*
 
 The next hypothesis that never got built.
