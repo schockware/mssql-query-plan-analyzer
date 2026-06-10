@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\QueryPlan.Analyzer\QueryPlan.Analyzer.csproj" />
+        <ProjectReference Include="..\QueryPlan.Analyzer.Sqlite\QueryPlan.Analyzer.Sqlite.csproj" />
+        <ProjectReference Include="..\QueryPlan.Common\QueryPlan.Common.csproj" />
+        <ProjectReference Include="..\Encased.Access.MsSql\Encased.Access.MsSql.csproj" />
+    </ItemGroup>
+
+</Project>

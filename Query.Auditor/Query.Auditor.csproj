@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Encased.Access.MsSql\Encased.Access.MsSql.csproj" />
+      <ProjectReference Include="..\Encased.Access\Encased.Access.csproj" />
+      <ProjectReference Include="..\QueryPlan.Analyzer\QueryPlan.Analyzer.csproj" />
+    </ItemGroup>
+
+</Project>
