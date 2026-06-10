@@ -214,6 +214,51 @@ but behaving as a scan.
 Both were added after the root-only seek problem was established — they catch the cases
 where the predicate is technically present but still not selective enough.
 
+#### The EF split query finding
+
+Before the SARGability discovery, `HighPercentageOfRowsReadFromIndex` surfaced a
+different problem entirely.
+
+Serverless functions that should have completed in seconds were taking hours. The
+individual queries looked clean — correct predicates, well-designed indexes. But the
+hypothesis was flagging them at `Threshold.Over`: the query was reading *more rows than
+the tenant actually had records*.
+
+That shouldn't be physically possible from a single well-structured query. It pointed
+to Entity Framework's split query feature.
+
+EF Core's split query mode breaks a query with multiple collection navigations into
+separate SQL statements to avoid cartesian explosion:
+
+```sql
+-- Query 1: fetch the main records
+SELECT * FROM MainTable WHERE ClientId = @ClientId AND DeletedUtc < @UtcNow
+
+-- Query 2: fetch all related records for those main records
+SELECT * FROM RelatedTable WHERE MainTableId IN ( ... all IDs from Query 1 ... )
+```
+
+For a large tenant, Query 1 might return 500,000 rows. Query 2 then fetches every
+related record across all 500,000 of them. If the related table has 3 rows per main
+record, Query 2 reads 1.5 million rows. If there are three collection navigations,
+EF issues three separate queries of similar scale. The total rows read across all
+sub-queries easily exceeds the tenant's record count — which is exactly what
+`Threshold.Over` catches.
+
+The indexes were correct. The predicates were correct. The problem was that EF was
+issuing multiple large queries where one targeted query would have done the work. The
+serverless functions weren't slow because of bad SQL — they were slow because EF was
+reading the same tenant's data three or four times over in separate roundtrips, each
+one pulling hundreds of thousands of rows.
+
+`HighPercentageOfRowsReadFromIndex` measures this at two levels: the percentage of the
+tenant's own records read (`RootPercentage`), and the percentage of the whole table
+read (`WholeTablePercentage`). `Threshold.Over` on either dimension — reading more
+rows than exist — is the signal that something structural is wrong, not just a missing
+index.
+
+---
+
 #### The unexpected finding: SARGability at scale
 
 The most surprising result from these two hypotheses was what it revealed about index
